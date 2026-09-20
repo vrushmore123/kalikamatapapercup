@@ -1,12 +1,12 @@
 export const siteConfig = {
   businessName: "Kalikamata Paper Products",
   ownerName: "Savita More",
-  phone: "",
-  whatsapp: "",
-  email: "",
-  address: "",
-  city: "",
-  businessHours: "",
+  phone: "9370776727",
+  whatsapp: "9370776727",
+  email: "vrushalimore@gmail.com",
+  address: "Chattrapati sambhajinagar,Maharastra, India",
+  city: "Chattrapati sambhajinagar",
+  businessHours: "9-8",
   logoUrl: "",
 } as const;
 

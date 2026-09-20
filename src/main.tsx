@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { contactPlaceholder, faqItems, siteConfig } from "./config";
-import { createOrder, getProducts } from "./api";
+import { createOrder, getProducts, loginAdmin } from "./api";
 
 type Product = {
   id: string;
@@ -58,7 +58,7 @@ const initialProducts: Product[] = [
     description:
       "A compact paper cup for tea, tasting portions and everyday serving requirements.",
     price: null,
-    image: "cup-55",
+    image: "/images/55ml.png",
     accent: "#f6c967",
     packings: [],
     availability: true,
@@ -70,7 +70,7 @@ const initialProducts: Product[] = [
     description:
       "A versatile paper cup for tea, coffee and everyday serving requirements.",
     price: null,
-    image: "cup-65",
+    image: "/images/65ml.png",
     accent: "#db8762",
     packings: [],
     availability: true,
@@ -90,6 +90,13 @@ const initialProducts: Product[] = [
 ];
 const navItems = ["Home", "Products", "About us", "Gallery", "FAQ", "Contact"];
 
+function productImageForCapacity(capacityMl: string | number, fallback = "") {
+  const capacity = String(capacityMl);
+  return ["55", "65", "85"].includes(capacity)
+    ? `/images/${capacity}ml.png`
+    : fallback;
+}
+
 function load<T>(key: string, fallback: T): T {
   try {
     return JSON.parse(localStorage.getItem(key) || "") as T;
@@ -97,12 +104,15 @@ function load<T>(key: string, fallback: T): T {
     return fallback;
   }
 }
+const savedProducts = load<Product[]>("kk-products-v2", initialProducts);
 function App() {
   const [products, setProducts] = useState<Product[]>(() =>
-    load("kk-products-v2", initialProducts),
+    savedProducts.length ? savedProducts : initialProducts,
   );
   const [orders, setOrders] = useState<Order[]>(() => load("kk-orders", []));
-  const [page, setPage] = useState("Home");
+  const [page, setPage] = useState(() =>
+    window.location.pathname === "/admin/dashboard" ? "Admin" : "Home",
+  );
   const [cart, setCart] = useState<CartLine[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [detail, setDetail] = useState<Product | null>(null);
@@ -116,19 +126,24 @@ function App() {
   useEffect(() => {
     getProducts()
       .then((remoteProducts) => {
-        setProducts(
-          remoteProducts.map((product) => ({
-            id: String(product.capacityMl),
-            size: `${product.capacityMl} ml`,
-            name: product.name.replace(/^\d+\s*ml\s*/i, "") || "Paper Cup",
-            description: product.description,
-            price: product.price ?? null,
-            image: `cup-${product.capacityMl}`,
-            accent: "#db8762",
-            packings: product.packingOptions || [],
-            availability: product.availability !== "unavailable",
-          })),
-        );
+        if (remoteProducts.length) {
+          setProducts(
+            remoteProducts.map((product) => ({
+              id: String(product.capacityMl),
+              size: `${product.capacityMl} ml`,
+              name: product.name.replace(/^\d+\s*ml\s*/i, "") || "Paper Cup",
+              description: product.description,
+              price: product.price ?? null,
+              image: productImageForCapacity(
+                product.capacityMl,
+                `cup-${product.capacityMl}`,
+              ),
+              accent: "#db8762",
+              packings: product.packingOptions || [],
+              availability: product.availability !== "unavailable",
+            })),
+          );
+        }
       })
       .catch(() => {
         // Local seed data keeps the catalogue usable while the API is offline.
@@ -150,6 +165,11 @@ function App() {
   );
   const go = (next: string) => {
     setPage(next);
+    window.history.pushState(
+      {},
+      "",
+      next === "Admin" ? "/admin/dashboard" : "/",
+    );
     setMobileMenu(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -230,9 +250,6 @@ function App() {
                 {item}
               </button>
             ))}
-            <button className="admin-link" onClick={() => go("Admin")}>
-              <ShieldCheck size={15} /> Admin
-            </button>
           </nav>
           <div className="nav-actions">
             <button
@@ -340,7 +357,11 @@ function App() {
                 Kalikamata<small>Paper Cup Products</small>
               </span>
             </button>
-            <p>{siteConfig.businessName}<br />Owned by {siteConfig.ownerName}</p>
+            <p>
+              {siteConfig.businessName}
+              <br />
+              Owned by {siteConfig.ownerName}
+            </p>
           </div>
           <div>
             <b>Explore</b>
@@ -350,8 +371,12 @@ function App() {
           </div>
           <div>
             <b>Reach us</b>
-            <span><Phone size={14} /> {siteConfig.phone || contactPlaceholder}</span>
-            <span><Mail size={14} /> {siteConfig.email || contactPlaceholder}</span>
+            <span>
+              <Phone size={14} /> {siteConfig.phone || contactPlaceholder}
+            </span>
+            <span>
+              <Mail size={14} /> {siteConfig.email || contactPlaceholder}
+            </span>
             <span>
               <MapPin size={14} /> {siteConfig.address || contactPlaceholder}
             </span>
@@ -414,8 +439,8 @@ function Home({
           <div className="hero-art">
             <div className="sun" />
             <div className="hero-cup cup-hero">
-              <div className="cup-rim" />
-              <span>KK</span>
+              {/* <div className="cup-rim" /> */}
+              <img src="/images/hero-image.png" alt="Hero Cup" />
             </div>
             <div className="hero-note">
               <span className="dot" /> Owner: Savita More
@@ -487,10 +512,9 @@ function Home({
       <section className="story-band">
         <div className="container story-layout">
           <div className="story-image">
-            <div className="leaf-pattern">✦</div>
+            {/* <div className="leaf-pattern">✦</div> */}
             <div className="story-cup">
-              <div className="cup-rim" />
-              <span>KK</span>
+              <img src="/images/hero-2.png" alt="Story Cup" />
             </div>
           </div>
           <div className="story-copy">
@@ -537,17 +561,30 @@ function ProductCard({
   addToCart: (p: Product) => void;
   setDetail: (p: Product) => void;
 }) {
+  const productImage = productImageForCapacity(product.id, product.image);
+
   return (
     <article className="product-card">
       <button
-        className={`cup-stage ${product.image}`}
+        className="product-image-button"
         onClick={() => setDetail(product)}
       >
-        <div className="cup-shape">
-          <div className="cup-rim" />
-          <span>KK</span>
-        </div>
-        <span className="zoom">View details</span>
+        {productImage.startsWith("/") || productImage.startsWith("http") ? (
+          <img
+            src={productImage}
+            alt={product.name}
+            className="product-image"
+          />
+        ) : (
+          <div className="cup-shape">
+            <div className="cup-rim" />
+            <span>KK</span>
+          </div>
+        )}
+
+        <span className="product-view-label">
+          View details
+        </span>
       </button>
       <div className="product-info">
         <div>
@@ -639,12 +676,7 @@ function About({ go }: { go: (p: string) => void }) {
       </div>
       <div className="about-grid">
         <div className="about-stat">
-          <strong>SM</strong>
-          <small>
-            Owner
-            <br />
-            Savita More
-          </small>
+          <img src="/images/hero-image.png" alt="Owner" />
         </div>
         <div>
           <h2>
@@ -695,6 +727,38 @@ function About({ go }: { go: (p: string) => void }) {
   );
 }
 
+type MasonryItem = {
+  id: string;
+  img: string;
+  height: number;
+  title: string;
+};
+
+const galleryItems: MasonryItem[] = [
+  { id: "hero", img: "/images/hero-image.png", height: 520, title: "Featured collection" },
+  { id: "55", img: "/images/55ml.png", height: 330, title: "55 ml paper cup" },
+  { id: "story", img: "/images/hero-2.png", height: 420, title: "Made for everyday serving" },
+  { id: "65", img: "/images/65ml.png", height: 300, title: "65 ml paper cup" },
+  { id: "85", img: "/images/85ml.png", height: 390, title: "85 ml paper cup" },
+];
+
+function MasonryGallery({ items }: { items: MasonryItem[] }) {
+  return (
+    <div className="masonry-gallery" aria-label="Product gallery">
+      {items.map((item) => (
+        <figure
+          className="masonry-item"
+          key={item.id}
+          style={{ aspectRatio: `1 / ${item.height / 400}` }}
+        >
+          <img src={item.img} alt={item.title} />
+          <figcaption>{item.title}</figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 function Gallery() {
   return (
     <section className="page-section container gallery">
@@ -712,23 +776,7 @@ function Gallery() {
           photographs are available.
         </p>
       </div>
-      <div className="gallery-grid">
-        <div className="gallery-placeholder tall">
-          <PackageCheck size={30} />
-          <b>Product photography</b>
-          <span>Placeholder for approved cup images</span>
-        </div>
-        <div className="gallery-placeholder">
-          <Box size={30} />
-          <b>Packing photography</b>
-          <span>Placeholder for approved packing images</span>
-        </div>
-        <div className="gallery-placeholder">
-          <Leaf size={30} />
-          <b>Business photography</b>
-          <span>Placeholder for approved business images</span>
-        </div>
-      </div>
+      <MasonryGallery items={galleryItems} />
     </section>
   );
 }
@@ -951,7 +999,11 @@ function CartDrawer({
                       <b>
                         {p.size} <small>{p.name}</small>
                       </b>
-                      <span>{line.packing ? `${line.packing} cups / pack` : "Packing to be confirmed"}</span>
+                      <span>
+                        {line.packing
+                          ? `${line.packing} cups / pack`
+                          : "Packing to be confirmed"}
+                      </span>
                       <div className="stepper">
                         <button onClick={() => updateLine(i, -1)}>
                           <Minus size={13} />
@@ -968,7 +1020,9 @@ function CartDrawer({
                         </button>
                       </div>
                     </div>
-                    <strong>{p.price ? `₹${p.price * line.packs}` : "Get Quote"}</strong>
+                    <strong>
+                      {p.price ? `₹${p.price * line.packs}` : "Get Quote"}
+                    </strong>
                   </div>
                 );
               })}
@@ -976,11 +1030,17 @@ function CartDrawer({
             <div className="drawer-total">
               <div>
                 <span>Total cups</span>
-                <b>{quantity ? quantity.toLocaleString("en-IN") : "To be confirmed"}</b>
+                <b>
+                  {quantity
+                    ? quantity.toLocaleString("en-IN")
+                    : "To be confirmed"}
+                </b>
               </div>
               <div>
                 <span>Estimated value</span>
-                <b>{value ? `₹${value.toLocaleString("en-IN")}` : "Get Quote"}</b>
+                <b>
+                  {value ? `₹${value.toLocaleString("en-IN")}` : "Get Quote"}
+                </b>
               </div>
               <small>
                 Final pricing confirmed by our team after reviewing your
@@ -1130,15 +1190,62 @@ function OrderPage({
             </div>
           </div>
           <div className="form-section">
-            <h2><span>03</span> Product requirement</h2>
+            <h2>
+              <span>03</span> Product requirement
+            </h2>
             <div className="form-row">
-              <label>Quantity required<input required type="number" min="1" value={form.quantity || ""} onChange={(e) => update("quantity", e.target.value)} placeholder="Total cups required" /></label>
-              <label>Packing requirement<select required value={form.packingRequirement || ""} onChange={(e) => update("packingRequirement", e.target.value)}><option value="">Select packing</option><option>Standard packing</option><option>Bulk packing</option><option>Custom packing</option><option>Other</option></select></label>
+              <label>
+                Quantity required
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={form.quantity || ""}
+                  onChange={(e) => update("quantity", e.target.value)}
+                  placeholder="Total cups required"
+                />
+              </label>
+              <label>
+                Packing requirement
+                <select
+                  required
+                  value={form.packingRequirement || ""}
+                  onChange={(e) => update("packingRequirement", e.target.value)}
+                >
+                  <option value="">Select packing</option>
+                  <option>Standard packing</option>
+                  <option>Bulk packing</option>
+                  <option>Custom packing</option>
+                  <option>Other</option>
+                </select>
+              </label>
             </div>
-            <label>Custom packing instructions <small>(optional)</small><input value={form.packingInstructions || ""} onChange={(e) => update("packingInstructions", e.target.value)} placeholder="Describe any packing preference" /></label>
+            <label>
+              Custom packing instructions <small>(optional)</small>
+              <input
+                value={form.packingInstructions || ""}
+                onChange={(e) => update("packingInstructions", e.target.value)}
+                placeholder="Describe any packing preference"
+              />
+            </label>
             <div className="form-row">
-              <label>Preferred delivery date <small>(optional)</small><input type="date" min={new Date().toISOString().split("T")[0]} value={form.deliveryDate || ""} onChange={(e) => update("deliveryDate", e.target.value)} /></label>
-              <label>Payment preference <small>(optional)</small><input value={form.paymentPreference || ""} onChange={(e) => update("paymentPreference", e.target.value)} placeholder="Your preference" /></label>
+              <label>
+                Preferred delivery date <small>(optional)</small>
+                <input
+                  type="date"
+                  min={new Date().toISOString().split("T")[0]}
+                  value={form.deliveryDate || ""}
+                  onChange={(e) => update("deliveryDate", e.target.value)}
+                />
+              </label>
+              <label>
+                Payment preference <small>(optional)</small>
+                <input
+                  value={form.paymentPreference || ""}
+                  onChange={(e) => update("paymentPreference", e.target.value)}
+                  placeholder="Your preference"
+                />
+              </label>
             </div>
           </div>
           <div className="form-section">
@@ -1152,7 +1259,10 @@ function OrderPage({
               placeholder="Delivery timelines, printing, or anything else we should know..."
             />
           </div>
-          <label className="consent"><input type="checkbox" required /> I agree to share these details for order review.</label>
+          <label className="consent">
+            <input type="checkbox" required /> I agree to share these details
+            for order review.
+          </label>
           <button
             className="button primary submit-order"
             disabled={!cart.length}
@@ -1178,11 +1288,16 @@ function OrderPage({
                   <div>
                     <b>{p.size} Paper Cup</b>
                     <span>
-                      {line.packing ? `${line.packing} cups` : "Packing to be confirmed"} × {line.packs} packs
+                      {line.packing
+                        ? `${line.packing} cups`
+                        : "Packing to be confirmed"}{" "}
+                      × {line.packs} packs
                     </span>
                   </div>
                   <strong>
-                    {line.packing ? (line.packing * line.packs).toLocaleString("en-IN") : "Quote"}
+                    {line.packing
+                      ? (line.packing * line.packs).toLocaleString("en-IN")
+                      : "Quote"}
                   </strong>
                 </div>
               );
@@ -1192,8 +1307,16 @@ function OrderPage({
             <span>
               <PackageCheck size={16} /> Total quantity
             </span>
-            <strong>{form.quantity ? `${Number(form.quantity).toLocaleString("en-IN")} cups` : "To be confirmed"}</strong>
-            <small>{form.quantity ? "Customer requested quantity" : "Quantity and pack size confirmed after review"}</small>
+            <strong>
+              {form.quantity
+                ? `${Number(form.quantity).toLocaleString("en-IN")} cups`
+                : "To be confirmed"}
+            </strong>
+            <small>
+              {form.quantity
+                ? "Customer requested quantity"
+                : "Quantity and pack size confirmed after review"}
+            </small>
           </div>
           <div className="summary-value">
             <span>Estimated order value</span>
@@ -1294,26 +1417,38 @@ function ProductModal({
   addToCart: (p: Product, packing?: number) => void;
   close: () => void;
 }) {
+  const productImage = productImageForCapacity(product.id, product.image);
+
   return (
     <div className="overlay">
       <div className="modal">
         <button className="close" onClick={close}>
           <X />
         </button>
-        <div className={`modal-art ${product.image}`}>
-          <div className="cup-shape">
-            <div className="cup-rim" />
-            <span>KK</span>
-          </div>
+        <div className={`modal-art ${productImage}`}>
+          {productImage.startsWith("/") || productImage.startsWith("http") ? (
+            <img src={productImage} alt={product.name} />
+          ) : (
+            <div className="cup-shape">
+              <div className="cup-rim" />
+              <span>KK</span>
+            </div>
+          )}
         </div>
         <div className="modal-copy">
           <span className="size-label">{product.size}</span>
           <h2>{product.name}</h2>
           <p>{product.description}</p>
           <div className="option-label">Packing</div>
-          <div className="packing-options"><span className="packing-unconfigured">Packing options configured on request</span></div>
+          <div className="packing-options">
+            <span className="packing-unconfigured">
+              Packing options configured on request
+            </span>
+          </div>
           <div className="modal-price">
-            <span><b>Get Quote</b></span>
+            <span>
+              <b>Get Quote</b>
+            </span>
             <button
               className="button primary"
               onClick={() => {
@@ -1344,6 +1479,7 @@ function Admin({
   onExit: () => void;
 }) {
   const [logged, setLogged] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const [tab, setTab] = useState("Orders");
   const [search, setSearch] = useState("");
   if (!logged)
@@ -1357,23 +1493,32 @@ function Admin({
           <h1>Welcome back.</h1>
           <p>Sign in to manage your catalogue and customer orders.</p>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              setLogged(true);
+              setLoginError("");
+              const form = new FormData(e.currentTarget);
+              try {
+                await loginAdmin(
+                  String(form.get("email") || ""),
+                  String(form.get("password") || ""),
+                );
+                setLogged(true);
+              } catch (error) {
+                setLoginError(
+                  error instanceof Error ? error.message : "Sign in failed",
+                );
+              }
             }}
           >
             <label>
               Email
-              <input
-                type="email"
-                required
-                defaultValue="admin@kalikamatacups.in"
-              />
+              <input type="email" required name="email" />
             </label>
             <label>
               Password
-              <input type="password" required defaultValue="kalikamata" />
+              <input type="password" required name="password" />
             </label>
+            {loginError && <p className="form-error">{loginError}</p>}
             <button className="button primary full">
               Sign in <ArrowRight size={16} />
             </button>
@@ -1603,7 +1748,10 @@ function ProductAdmin({
                 {p.size} · {p.name}
               </b>
               <span>
-                {p.price ? `₹${p.price} / pack` : "Get Quote"} · {p.packings.length ? p.packings.join(" / ") : "Packing to configure"}
+                {p.price ? `₹${p.price} / pack` : "Get Quote"} ·{" "}
+                {p.packings.length
+                  ? p.packings.join(" / ")
+                  : "Packing to configure"}
               </span>
             </div>
             <button className="text-button" onClick={() => setEditing(p)}>
@@ -1630,9 +1778,13 @@ function ProductAdmin({
                 id: String(data.get("id")),
                 size: String(data.get("size")),
                 name: String(data.get("name")),
-                price: String(data.get("price")).trim() ? Number(data.get("price")) : null,
+                price: String(data.get("price")).trim()
+                  ? Number(data.get("price"))
+                  : null,
                 description: String(data.get("description")),
-                packings: String(data.get("packings")).trim() ? String(data.get("packings")).split(",").map(Number) : [],
+                packings: String(data.get("packings")).trim()
+                  ? String(data.get("packings")).split(",").map(Number)
+                  : [],
               };
               setProducts(
                 products.some((p) => p.id === item.id)
@@ -1687,7 +1839,6 @@ function ProductAdmin({
               <input
                 name="packings"
                 defaultValue={editing.packings.join(",")}
-                
               />
             </label>
             <button className="button primary full">Save product</button>

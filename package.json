@@ -28,8 +28,10 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "tailwindcss": "^4.3.3",
     "typescript": "latest"
   }
 }

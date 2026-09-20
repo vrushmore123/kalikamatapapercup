@@ -24,3 +24,9 @@ export type ApiProduct = {
 export function getProducts() { return request<ApiProduct[]>('/products'); }
 export function createOrder(payload: unknown) { return request<{ id: string; orderNumber: string; status: string }>('/orders', { method: 'POST', body: JSON.stringify(payload) }); }
 export function createEnquiry(payload: unknown) { return request<{ id: string; status: string }>('/enquiries', { method: 'POST', body: JSON.stringify(payload) }); }
+export function loginAdmin(email: string, password: string) {
+  return request<{ token: string }>('/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
